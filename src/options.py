@@ -17,6 +17,8 @@ def args_parser():
     parser.add_argument('--val_ratio', type=float, default=0.2, help='fraction of train data to use as validation')
     parser.add_argument('--scale', type=float, default=0.01, help='scaling the y values')
     
+    parser.add_argument('--seq_in_len',type=int,default=25,help='input sequence length')
+    parser.add_argument('--horizon', type=int, default=6)
     
     ### BiLSTM
     parser.add_argument('--input_size', type=float, default=7, help='input dim of LSTM')
@@ -44,7 +46,5 @@ def args_parser():
     
     
 
-    parser.add_argument('--seq_in_len',type=int,default=25,help='input sequence length')
-    parser.add_argument('--horizon', type=int, default=6)
     args = parser.parse_args()
     return args

@@ -69,7 +69,7 @@ def get_dataset(args):
         np.nan_to_num(X_normalized_train_df, copy=False, nan=0.0)
         np.nan_to_num(X_normalized_val_df, copy=False, nan=0.0)
         np.nan_to_num(X_normalized_test_df, copy=False, nan=0.0)
-        ############### change to cbg latter
+        
         y_train = train_df["cbg"].values * args.scale
         y_train_mask = data_dict[patient]["train_impute_mask"]["cbg"].values
 
@@ -78,7 +78,7 @@ def get_dataset(args):
 
         y_test = test_df["cbg"].values * args.scale 
         y_test_mask = data_dict[patient]["test_impute_mask"]["cbg"].values
-        ############### change to cbg latter
+        
         client_idx = patient_to_client_mapping[patient]
 
         for index in range(args.seq_in_len, X_normalized_train_df.shape[0]-args.horizon+1):
@@ -156,14 +156,3 @@ def cubic_interpolate(df):
         cs_impute = CubicSpline(not_missing_indexes, df_np[not_missing_indexes, col_index])
         df_impute_np[:,col_index] = cs_impute(x_range)
     return pd.DataFrame(df_impute_np, columns=df.columns, index=df.index), pd.DataFrame(missing_mask, columns=df.columns, index=df.index)
-
-
-def create_clients(data, window_length, horizon, num_clients):
-    X_list = []
-    y_list = []
-    for X, y, mask_y in data:
-        for index in range(window_length, X.shape[0]-horizon+1):
-            if mask_y[window_length+horizon-1, 0]:
-                X_list.append(X[index-window_length:index])
-                y_list.append(y[index+horizon-1, :])
-    return torch.tensor(np.array(X_list)).float(), torch.tensor(np.array(y_list)).unsqueeze(-1).float()

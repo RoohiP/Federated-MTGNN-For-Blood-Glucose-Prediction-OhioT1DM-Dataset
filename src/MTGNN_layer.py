@@ -168,25 +168,6 @@ class graph_constructor(nn.Module):
         self.alpha = alpha
         self.static_feat = static_feat
 
-#     def forward(self, idx):
-#         if self.static_feat is None:
-#             nodevec1 = self.emb1(idx)
-#             nodevec2 = self.emb2(idx)
-#         else:
-#             nodevec1 = self.static_feat[idx,:]
-#             nodevec2 = nodevec1
-
-#         nodevec1 = torch.tanh(self.alpha*self.lin1(nodevec1))
-#         nodevec2 = torch.tanh(self.alpha*self.lin2(nodevec2))
-
-#         a = torch.mm(nodevec1, nodevec2.transpose(1,0))-torch.mm(nodevec2, nodevec1.transpose(1,0))
-#         adj = F.relu(torch.tanh(self.alpha*a))
-#         mask = torch.zeros(idx.size(0), idx.size(0)).to(self.device)
-#         mask.fill_(float('0'))
-#         s1,t1 = (adj + torch.rand_like(adj)*0.01).topk(self.k,1)
-#         mask.scatter_(1,t1,s1.fill_(1))
-#         adj = adj*mask
-#         return adj
     def forward(self, idx):
         if self.static_feat is None:
             nodevec1 = self.emb1(idx)
@@ -200,6 +181,11 @@ class graph_constructor(nn.Module):
 
         a = torch.mm(nodevec1, nodevec2.transpose(1,0))-torch.mm(nodevec2, nodevec1.transpose(1,0))
         adj = F.relu(torch.tanh(self.alpha*a))
+        mask = torch.zeros(idx.size(0), idx.size(0)).to(self.device)
+        mask.fill_(float('0'))
+        s1,t1 = (adj + torch.rand_like(adj)*0.01).topk(self.k,1)
+        mask.scatter_(1,t1,s1.fill_(1))
+        adj = adj*mask
         return adj
     
     def fullA(self, idx):
