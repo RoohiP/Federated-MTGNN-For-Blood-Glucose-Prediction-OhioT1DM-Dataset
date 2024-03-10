@@ -51,6 +51,26 @@ ohiot1dm
 
 ## Running the Code
 
+**Option 1**: Run the BiLSTM model
+
+```
+python federated_main.py --model BiLSTM
+```
+
+**Option 2**: Run the MTGNN model
+
+```
+python federated_main.py --model MTGNN
+```
+
+**Option 3**: Use grid search to find the best hyperparameters for MTGNN model, and use validation from training data. The results will be saved in a CSV file.
+
+(you can define your search parameters in **federated_main.py**)
+
+```
+python federated_main.py --model MTGNN --grid_search True --validation True
+```
+
 ## Options
 
 The default values for various paramters parsed to the experiment are given in `options.py`. Details are given some of those parameters:
@@ -101,3 +121,10 @@ The default values for various paramters parsed to the experiment are given in `
 - `--tanhalpha:` Adjacency alpha, Default is 3.
 
 ## Results
+
+| Number of Clients | Model  | TRAIN MAE | TRAIN MSE | TEST MAE | TEST MSE |
+| ----------------- | ------ | --------- | --------- | -------- | -------- |
+| 1                 | MTGNN  | 15.76     | 554.99    | 14.60    | 467.32   |
+| 4                 | MTGNN  | 16.12     | 589.34    | 15.01    | 504.85   |
+| 1                 | BiLSTM | 15.85     | 546.25    | 15.03    | 477.69   |
+| 4                 | BiLSTM | 16.15     | 606.92    | 14.99    | 508.80   |

@@ -87,7 +87,7 @@ def grid_search(args):
     results_column = []
     for arg_name, _ in vars(args).items():
         results_column.append(arg_name) 
-    results_column += ["MAE_Train_Global", "MAE_Test_Global", "MSE_Train_Global", "MSE_Test_Global"]
+    results_column += ["MAE_Train_Global", "MSE_Train_Global", "MAE_Test_Global", "MSE_Test_Global"]
     results = pd.DataFrame(results, columns=results_column)
     results.to_csv("../save/Param_search_results.csv")
         

@@ -8,10 +8,10 @@ def args_parser():
     parser.add_argument('--num_clients', type=int, default=4, help="number of clients")
     parser.add_argument('--local_ep', type=int, default=10, help="the number of local epochs")
     
-    parser.add_argument('--weight_decay', type=float, default=0.01, help="weight_decay")
-    parser.add_argument('--epochs', type=int, default=20, help="number of rounds of training")
+    parser.add_argument('--weight_decay', type=float, default=0, help="weight_decay")
+    parser.add_argument('--epochs', type=int, default=30, help="number of rounds of training")
     parser.add_argument('--batch_size',type=int,default=512,help='batch size')
-    parser.add_argument('--lr', type=float, default=0.01, help='learning rate')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
 
     parser.add_argument('--model', type=str, default='MTGNN', help='model name')
     parser.add_argument('--ohio_directory', type=str, default='../data/Ohio Data/', help='Ohio data directory')

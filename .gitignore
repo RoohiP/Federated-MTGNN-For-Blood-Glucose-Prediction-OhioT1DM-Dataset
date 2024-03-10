@@ -1,7 +1,6 @@
 .DS_Store
 .ipynb_checkpoints
 data/Ohio Data
-*.ipynb
 **/__pycache__/
 **/tmp*
 save/*.png
