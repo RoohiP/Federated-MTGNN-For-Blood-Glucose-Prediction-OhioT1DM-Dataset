@@ -5,7 +5,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-
+from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,42 +13,91 @@ from sklearn.model_selection import ParameterGrid
 from options import args_parser
 from update import LocalUpdate
 from models import BiLSTM, gtnet
-from utils import get_dataset, average_weights, exp_details
+from utils import get_dataset, average_weights, exp_details, plotting
 
-def grid_search(args, client_loader):
-    param_grid = {
-        'learning_rate': [0.01, 0.1],
-        'optimizer': [optim.SGD, optim.Adam],
-        'weight_decay': [0, 0.01, 0.1],
-        'batch_size': [32, 512]
+def grid_search(args):
+    args.validation = True
+    param_grid_MTGNN = {
+        'learning_rate': [0.001, 0.0001],
+        'optimizer': [optim.Adam], #optim.SGD, 
+        'local_ep':[5, 10],
+        'epochs': [30],
+        'weight_decay': [0],
+        'batch_size': [512],
+        'mtgnn_dropout':[0.2],
+        'channels_mul': [1],
+        'layers': [2],
+        'num_clients': [1, 4]
     }
-    all_params = ParameterGrid(param_grid)
+    param_grid_BiLSTM = {
+        'learning_rate': [0.001, 0.01],
+        'optimizer': [optim.Adam],
+        'local_ep':[5, 10],
+        'epochs': [30],
+        'weight_decay': [0],
+        'batch_size': [512],
+        'lstm_dropout': [0.2],
+        'num_clients': [1, 4]
+    }
+
+    all_params = None
+    if args.model == 'BiLSTM':
+        all_params = ParameterGrid(param_grid_BiLSTM)
+    elif args.model == 'MTGNN':
+        all_params = ParameterGrid(param_grid_MTGNN)
+    else:
+        exit('Error: unrecognized model')
     results = []
     for params in all_params:
         result = []
         optimizer = params['optimizer']
+        args.local_ep = params['local_ep']
+        args.epochs = params['epochs']
         args.lr = params['learning_rate']
         args.weight_decay = params['weight_decay']
         args.batch_size = params['batch_size']
-        result.append(params['optimizer'])
-        result.append(params['learning_rate'])
-        result.append(params['weight_decay'])
-        result.append(params['batch_size'])
+        if args.model == 'BiLSTM':
+            args.lstm_dropout = params['lstm_dropout']
+        elif args.model == 'MTGNN':
+            args.mtgnn_dropout = params['mtgnn_dropout']
+            args.conv_channels = params['channels_mul'] * args.conv_channels
+            args.residual_channels = params['channels_mul'] * args.residual_channels
+            args.skip_channels = params['channels_mul'] * args.skip_channels
+            args.end_channels = params['channels_mul'] * args.end_channels
+            args.layers = params['layers']
+            args.num_clients = params['num_clients']
         
-        train_res = train(args, client_loader, optimizer)
-        for item in train_res:
-            result.append(item)
+        print(args)
+        for _, arg_value in vars(args).items():
+            result.append(arg_value)
+        client_loader, client_mapping = get_dataset(args)
+        try:
+            client_losses, global_losses = train(args, client_loader, optimizer)
+        except Exception as e:
+            print("An error occurred:", e)
+            continue
+            
+        
+        result.append(global_losses["train_mae"][-1])
+        result.append(global_losses["train_mse"][-1])
+        result.append(global_losses["test_mae"][-1])
+        result.append(global_losses["test_mse"][-1])
         results.append(result)
         
-        
-    results = pd.DataFrame(results, columns=["optimizer" , "learning_rate", "weight_decay", "batch_size", "Avg_MAE_Train_locals", "Avg_MAE_Val_locals", "Avg_MSE_Train_locals", "Avg_MSE_Val_locals", "MAE_Train_Global", "MAE_Val_Global", "MSE_Train_Global", "MSE_Val_Global"])
+    results_column = []
+    for arg_name, _ in vars(args).items():
+        results_column.append(arg_name) 
+    results_column += ["MAE_Train_Global", "MAE_Test_Global", "MSE_Train_Global", "MSE_Test_Global"]
+    results = pd.DataFrame(results, columns=results_column)
     results.to_csv("../save/Param_search_results.csv")
         
         
     
 def train(args, client_loader, optimizer=None):
-    
+    exp_details(args)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    client_losses = defaultdict(lambda: defaultdict(list))
+    global_losses = defaultdict(list)
     if args.model == 'BiLSTM':
         global_model = BiLSTM(args, device)
     elif args.model == 'MTGNN':
@@ -67,34 +116,34 @@ def train(args, client_loader, optimizer=None):
     global_weights = global_model.state_dict()
 
     # Training
-
+    
     for epoch in tqdm(range(args.epochs)):
-        local_weights, train_local_mae_losses, train_local_mse_losses, val_local_mae_losses, val_local_mse_losses = [], [], [], [], []
+        local_weights = []
+        train_mae_avg, train_mse_avg, test_mae_avg, test_mse_avg = 0, 0, 0, 0
         print(f'\n | Global Training Round : {epoch+1} |\n')
-
         global_model.train()
         for client_idx in range(args.num_clients):
             print(f'| Client Index : {client_idx} |')
             local_model = LocalUpdate(args, client_loader[client_idx], device, criterion)
-            w, train_mae_loss, val_mae_loss, train_mse_loss, val_mse_loss = local_model.update_weights(args, copy.deepcopy(global_model), epoch+1, optimizer)
+            w, train_mae_loss, test_mae_loss, train_mse_loss, test_mse_loss = local_model.update_weights(args, copy.deepcopy(global_model), epoch+1, optimizer)
             local_weights.append(copy.deepcopy(w))
-            train_local_mae_losses.append(copy.deepcopy(train_mae_loss))
-            train_local_mse_losses.append(copy.deepcopy(train_mse_loss))
-            val_local_mae_losses.append(copy.deepcopy(val_mae_loss))
-            val_local_mse_losses.append(copy.deepcopy(val_mse_loss))
+            client_losses[client_idx]["train_mae"].append(train_mae_loss)
+            client_losses[client_idx]["train_mse"].append(train_mse_loss)
+            client_losses[client_idx]["test_mae"].append(test_mae_loss)
+            client_losses[client_idx]["test_mse"].append(test_mse_loss)
        
         
         global_weights = average_weights(local_weights)
         global_model.load_state_dict(global_weights)
+        for client_idx in range(args.num_clients):
+            train_mae_avg += client_losses[client_idx]["train_mae"][-1].mean() / args.num_clients
+            train_mse_avg += client_losses[client_idx]["train_mse"][-1].mean() / args.num_clients
+            test_mae_avg += client_losses[client_idx]["test_mae"][-1].mean() / args.num_clients
+            test_mse_avg += client_losses[client_idx]["test_mse"][-1].mean() / args.num_clients
         
-        train_mae_avg = sum(train_local_mae_losses) / len(train_local_mae_losses)
-        train_mse_avg = sum(train_local_mse_losses) / len(train_local_mse_losses)
-        val_mae_avg = sum(val_local_mae_losses) / len(val_local_mae_losses)
-        val_mse_avg = sum(val_local_mse_losses) / len(val_local_mse_losses)
         
-        
-        train_global_mae, train_global_mse, val_global_mae, val_global_mse = 0, 0, 0, 0
-        train_global_samples, val_global_samples = 0, 0
+        train_global_mae, train_global_mse, test_global_mae, test_global_mse = 0, 0, 0, 0
+        train_global_samples, test_global_samples = 0, 0
         global_model.eval()
         with torch.no_grad():
             for client_idx in range(args.num_clients):
@@ -103,32 +152,32 @@ def train(args, client_loader, optimizer=None):
                 train_global_mae += running_mae
                 train_global_mse += running_mse
                 train_global_samples += running_num_samples
-                running_mae, running_mse, running_num_samples = local_model.inference(args, global_model, "val")
-                val_global_mae += running_mae
-                val_global_mse += running_mse
-                val_global_samples += running_num_samples
-
+                running_mae, running_mse, running_num_samples = local_model.inference(args, global_model, "test")
+                test_global_mae += running_mae
+                test_global_mse += running_mse
+                test_global_samples += running_num_samples
+        global_losses["train_mae"].append(train_global_mae/train_global_samples)
+        global_losses["train_mse"].append(train_global_mse/train_global_samples)
+        global_losses["test_mae"].append(test_global_mae/test_global_samples)
+        global_losses["test_mse"].append(test_global_mse/test_global_samples)
     # print global training loss after every 'i' rounds
         print(f' \nAvg Training Stats after {epoch+1} global rounds:')
-        print('Avg Loss on each client  model | Train MAE: {:.6f} | Val MAE: {:.6f} | Train MSE: {:.6f} | Val MSE: {:.6f}'.format(train_mae_avg, val_mae_avg, train_mse_avg, val_mse_avg))
-        print('Loss for Global model          | Train MAE: {:.6f} | Val MAE: {:.6f} | Train MSE: {:.6f} | Val MSE: {:.6f}'.format(train_global_mae/train_global_samples, val_global_mae/val_global_samples, train_global_mse/train_global_samples, val_global_mse/val_global_samples))
+        val_test_str = "Val" if args.validation else "Test"
+        print('Avg Loss on each client  model | Train MAE: {:.6f} | {} MAE: {:.6f} | Train MSE: {:.6f} | {} MSE: {:.6f}'.format(train_mae_avg, val_test_str, test_mae_avg, train_mse_avg, val_test_str, test_mse_avg))
+        print('Loss for Global model          | Train MAE: {:.6f} | {} MAE: {:.6f} | Train MSE: {:.6f} | {} MSE: {:.6f}'.format(global_losses["train_mae"][-1], val_test_str, global_losses["test_mae"][-1], global_losses["train_mse"][-1], val_test_str, global_losses["test_mse"][-1]))
         
-    return train_mae_avg, val_mae_avg, train_mse_avg, val_mse_avg,train_global_mae/train_global_samples, val_global_mae/val_global_samples, train_global_mse/train_global_samples, val_global_mse/val_global_samples
+    return client_losses, global_losses
 
 def main():
     start_time = time.time()
 
     args = args_parser()
-    
-    exp_details(args)
-    client_loader, client_mapping = get_dataset(args)
-
-    
     if args.grid_search:
-        grid_search(args, client_loader)
+        grid_search(args)
     else:
-        train(args, client_loader)
-    
+        client_loader, client_mapping = get_dataset(args)
+        client_losses, global_losses = train(args, client_loader)
+        plotting(args, client_losses, global_losses)
 if __name__ == '__main__':
     main()
     

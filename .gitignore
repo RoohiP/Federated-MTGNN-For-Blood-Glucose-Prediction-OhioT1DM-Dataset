@@ -3,3 +3,6 @@
 data/Ohio Data
 *.ipynb
 **/__pycache__/
+**/tmp*
+save/*.png
+save/*.csv

@@ -57,12 +57,13 @@ The default values for various paramters parsed to the experiment are given in `
 
 ### General Options
 
-- `--grid_search:` Doing a grid search validation, Default is True.
+- `--grid_search:` Do a grid search validation, Default is True.
+- `--validation:` Do validation split, set this to False to use test data.
 - `--val_ration:` Fraction of train data to use as validation.
 - `--num_clients:` Number of clients for Federated Learning, Default is 4.
 - `--epochs:` Number of global epochs, Default is 10.
 - `--local_ep:` Number of local epochs, Default is 5.
-
+- `--ohio_directory:` Ohio data directory, Default is ../data/Ohio Data/.
 - `--batch_size:` Batch size, Default is 256.
 - `--lr:` Learning rate in Optimizer, Default is 0.01.
 - `--weight_decay:` Weight Decay in Optimizer, Default is 0.01.
@@ -70,6 +71,11 @@ The default values for various paramters parsed to the experiment are given in `
 - `--scale:` Scaling the output values, Default is 0.01.
 - `--seq_in_len:` Window size of input, Default is 25, meaning 2 hours of input data.
 - `--horizon:` Prediction horizon \* 5 min interval , Default is 6, meaning 30 min in the future.
+- `--imputation_method:` imputation method, Options: KNN, Linear, Cubic.
+- `--imputation_KNN_K:` K parameter in KNN future, Default is 5.
+- `--clamp_output:` Clamping the output of model to be between min and max value, Default is True.
+- `--clamp_output_min:` Default is 40.
+- `--clamp_output_max:` Default is 400.
 
 ### Bi-LSTM Options
 
@@ -88,7 +94,7 @@ The default values for various paramters parsed to the experiment are given in `
 - `--dilation_exponential:` Dilation exponential, Default is 2.
 - `--conv_channels:` Convolution channels, Default is 4.
 - `--residual_channels:` Residual channels, Default is 4.
-- `--skip_channels:` Skip channels, Default is 8.
+- `--skip_channels:` Skip channels, Default is 6.
 - `--end_channels:` End channels, Default is 16.
 - `--layers:` Number of layers, Default is 5.
 - `--propalpha:` Prop alpha, Default is 0.05.

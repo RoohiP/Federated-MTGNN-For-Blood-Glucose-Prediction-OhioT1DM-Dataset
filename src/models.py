@@ -11,9 +11,13 @@ class BiLSTM(nn.Module):
         self.num_layers = args.num_layers
         self.lstm = nn.LSTM(args.input_size, self.hidden_size, self.num_layers, batch_first=True, bidirectional=True)
         self.fc1 = nn.Linear(self.hidden_size * 2, 64)  
-        self.dropout = nn.Dropout(args.lstm_dropout)
-        self.fc2 = nn.Linear(64, 4)  
-        self.fc3 = nn.Linear(4, 1) 
+        # self.layer_norm1 = nn.LayerNorm(64)
+        # self.bn1 = nn.BatchNorm1d(64)
+        # self.dropout = nn.Dropout(args.lstm_dropout)
+        self.fc2 = nn.Linear(64, 8)  
+        # self.layer_norm2 = nn.LayerNorm(8)
+        # self.bn2 = nn.BatchNorm1d(8)
+        self.fc3 = nn.Linear(8, 1) 
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -21,9 +25,13 @@ class BiLSTM(nn.Module):
         c0 = torch.zeros(self.num_layers * 2, x.size(0), self.hidden_size).to(self.device)
         out, _ = self.lstm(x, (h0, c0))
         out = self.fc1(out[:, -1, :])
+        # out = self.layer_norm1(out)
+        # out = self.bn1(out)
         out = self.relu(out)
-        out = self.dropout(out)
+        # out = self.dropout(out)
         out = self.fc2(out)
+        # out = self.layer_norm2(out)
+        # out = self.bn2(out)
         out = self.relu(out)
         out = self.fc3(out)
         return out
